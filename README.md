@@ -10,7 +10,7 @@ Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app w
 
 该组件是一个angular2组件，依赖turf.js库，高德地图为2.0版本。
 
-将draw-area组件拷贝到自己项目中使用。test组件展示了最基本的使用方式。
+将draw-area组件拷贝到自己项目中使用。test组件展示了最基本的使用方式。进入项目npm start就可以启动
 
 # API文档
 
