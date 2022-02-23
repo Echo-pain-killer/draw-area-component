@@ -41,4 +41,8 @@ export class TestComponent implements OnInit,AfterViewInit {
       this.mapVisible = true
     });
   }
+
+  closeArea(e) {
+    console.log(e)
+  }
 }

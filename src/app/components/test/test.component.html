@@ -1,3 +1,3 @@
 <div style="width: 100vw;height: 100vh;" #map class="map"></div>
 
-<app-draw-area *ngIf="mapVisible" [map]="amap"></app-draw-area>
+<app-draw-area *ngIf="mapVisible" [map]="amap" (closeArea)="closeArea($event)"></app-draw-area>

@@ -1,10 +1,36 @@
-import { Component, Input, OnDestroy, OnInit } from '@angular/core';
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
 import '@amap/amap-jsapi-types';
 import { MapEventObject } from 'src/app/interface/map.interface';
 import { filter, switchMap, take, takeUntil } from 'rxjs/operators';
 import { Subject, BehaviorSubject, combineLatest } from 'rxjs';
 import * as turf from '@turf/turf';
 
+/**
+ * @param map 高德地图的地图实例
+ * @param pointStrokeColor 点的描边颜色（点实际上是一个圆）
+ * @param pointFillColor 点的填充颜色
+ * @param pointFillOpacity 点的填充色透明度
+ * @param pointRadius 点的半径（点的大小，单位px）
+ * @param pointzIndex 点的zIndex
+ *
+ * @param lineStrokeColor 线的描边颜色
+ * @param lineStrokeWeight 线的宽度
+ * @param lineStrokeOpacity 线的透明度
+ * @param linezIndex 线的zIndex
+ *
+ * @param areaFillColor 区域的填充颜色
+ * @param areaFillOpacity 区域的填充透明度
+ *
+ * @param guideVisible 是否绘制辅助线
+ * @param lineSpace 辅助线与两点连线之间的间距（px）
+ * @param guideStrokeColor 辅助线颜色
+ * @param guideArcColor 角弧度线颜色
+ * @param guideTextStyle 文本样式
+ * @param guideArcTextStyle 角度文本样式
+ *
+ * @param centerIconOption 区域中心icon配置
+ *
+ */
 @Component({
   selector: 'app-draw-area',
   templateUrl: './draw-area.component.html',
@@ -12,6 +38,51 @@ import * as turf from '@turf/turf';
 })
 export class DrawAreaComponent implements OnInit, OnDestroy {
   @Input() map: AMap.Map;
+  @Input() pointStrokeColor = '#336AFE';
+  @Input() pointFillColor = '#F0F6FF';
+  @Input() pointFillOpacity = 1;
+  @Input() pointRadius = 5;
+  @Input() pointzIndex = 9;
+
+  @Input() lineStrokeColor = '#336AFE';
+  @Input() lineStrokeWeight = 4;
+  @Input() lineStrokeOpacity = 1;
+  @Input() linezIndex = 10;
+
+  @Input() areaFillColor = '#336AFE';
+  @Input() areaFillOpacity = 0.07;
+
+  @Input() guideVisible = true;
+  @Input() lineSpace = 5;
+  @Input() guideStrokeColor = '#336AFE';
+  @Input() guideArcColor = '#336AFE';
+  @Input() guideTextStyle: {
+    [key: string]: string;
+  } = {
+    'background-color': '#336AFE',
+    'border-radius': '8px',
+    color: '#fff',
+    padding: '0 5px',
+  };
+  @Input() guideArcTextStyle:{
+    [key:string]:string
+  } = {
+    'background-color': 'transparent',
+    border: 'none',
+    color: '#262626',
+  }
+
+  @Input() centerIconOption: {
+    image: string; // 路径
+    size?: [number,number];
+    anchor?: 'top-left'| 'top-center'|'top-right'|'middle-left'|'center'| 'middle-right'| 'bottom-left'| 'bottom-center'| 'bottom-right' ;
+  } = {
+    image: '../../../assets/delete-fill.svg',
+    size: [30,30],
+    anchor: 'center'
+  }
+
+  @Output() closeArea = new EventEmitter<[number,number][]>()
 
   private componentDestroySubject: Subject<null> = new Subject();
   private mapEventSubject: Subject<MapEventObject> = new Subject();
@@ -26,8 +97,6 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
     isClosure: boolean; // 多边形是否闭合
     origin: number[]; // 坐标原点(经纬度)
   }> = new BehaviorSubject({ isClosure: false, origin: [] });
-
-  lineSpace = 5; // 辅助线间距
 
   polygon: AMap.Polygon; // 多边形填充区域
 
@@ -51,6 +120,8 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
   activeGuideArc: AMap.Polyline; // 鼠标移动时圆弧
   activeGuideArcText: AMap.Text; // 鼠标移动时角度文字
 
+  deleteMarker: AMap.LabelMarker;
+
   constructor() {}
 
   ngOnInit(): void {
@@ -65,9 +136,11 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
     // 画面
     this.drawArea();
     // 画辅助线
-    this.drawGuideLine()
+    if(this.guideVisible) {
+      this.drawGuideLine()
+    }
     // 鼠标与点之间的连线
-    this.pointDragHandle()
+    this.pointDragHandle();
   }
 
   ngOnDestroy(): void {
@@ -121,12 +194,12 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
           // 创建实例并加入组
           const circleMarker = new AMap.CircleMarker({
             center: new AMap.LngLat(point[0], point[1]),
-            radius: 5,
-            strokeColor: '#336AFE',
-            fillColor: '#F0F6FF',
-            fillOpacity: 1,
+            radius: this.pointRadius,
+            strokeColor: this.pointStrokeColor,
+            fillColor: this.pointFillColor,
+            fillOpacity: this.pointFillOpacity,
             cursor: 'pointer',
-            zIndex: 99,
+            zIndex: this.pointzIndex,
             extData: {
               index,
             },
@@ -136,6 +209,16 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
           this.pointOverlayGroup.addOverlay(circleMarker);
         }
       });
+
+      // 删除或撤销时，删除多余实例
+      const pointMarkers = this.pointOverlayGroup.getOverlays();
+      if (pointMarkers.length > data.points.length) {
+        const removes: AMap.CircleMarker[] = pointMarkers.slice(data.points.length);
+        this.pointOverlayGroup.removeOverlays(removes);
+        removes.forEach((instance) => {
+          instance.remove();
+        });
+      }
     });
   }
 
@@ -158,6 +241,8 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
             ...this.isClosureSubject.value,
             isClosure: true,
           });
+          // 闭合后将点数据暴露出去
+          this.closeArea.emit(this.pointDataSubject.value.points)
         });
     });
   }
@@ -187,11 +272,11 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
             } else {
               const polyline = new AMap.Polyline({
                 path: [new AMap.LngLat(...points[points.length - 1]), new AMap.LngLat(...points[points.length - 2])],
-                strokeColor: '#336AFE',
-                strokeWeight: 4,
-                strokeOpacity: 1,
+                strokeColor: this.lineStrokeColor,
+                strokeWeight: this.lineStrokeWeight,
+                strokeOpacity: this.lineStrokeOpacity,
                 extData: { index },
-                zIndex: 999,
+                zIndex: this.linezIndex,
               });
               this.lineOverlayGroup.addOverlay(polyline);
             }
@@ -207,15 +292,25 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
             // 闭合多边形时，画最后一条线
             const polyline = new AMap.Polyline({
               path: [new AMap.LngLat(...points[0]), new AMap.LngLat(...points[points.length - 1])],
-              strokeColor: '#336AFE',
-              strokeWeight: 4,
-              strokeOpacity: 1,
+              strokeColor: this.lineStrokeColor,
+              strokeWeight: this.lineStrokeWeight,
+              strokeOpacity: this.lineStrokeOpacity,
               extData: { index: lastLineIndex + 1 },
-              zIndex: 999,
+              zIndex: this.linezIndex,
             });
 
             this.lineOverlayGroup.addOverlay(polyline);
           }
+        }
+
+      // 删除或撤销时，删除多余实例
+        const lines = this.lineOverlayGroup.getOverlays();
+        if (lines.length > points.length - (isClosure ? 0 : 1)) {
+          const removes: AMap.CircleMarker[] = points.length === 0 ? lines : lines.slice(points.length - 1);
+          this.lineOverlayGroup.removeOverlays(removes);
+          removes.forEach((instance) => {
+            instance.remove();
+          });
         }
       });
   }
@@ -235,17 +330,44 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
             this.polygon = new AMap.Polygon({
               path: points,
               strokeOpacity: 0,
-              fillColor: '#336AFE',
-              fillOpacity: 0.07,
+              fillColor: this.areaFillColor,
+              fillOpacity: this.areaFillOpacity,
               bubble: true,
             });
             this.map.add(this.polygon);
           }
+
+          // 找到多边形质心，绘制删除按钮
+          const polygon = turf.polygon([[...points, points[0]]]);
+          const centerPos = turf.centerOfMass(polygon).geometry.coordinates as [number, number];
+          this.drawDeleteIcon(centerPos);
         } else {
           this.polygon?.remove();
+          this.deleteMarker?.remove();
           this.polygon = null;
+          this.deleteMarker = null;
         }
       });
+  }
+
+  drawDeleteIcon(centerPos: [number, number]): void {
+    if (this.deleteMarker) {
+      this.deleteMarker.setPosition(centerPos);
+    } else {
+      this.deleteMarker = new AMap.LabelMarker({
+        position: centerPos,
+        icon: this.centerIconOption,
+      });
+      this.deleteMarker.on('click', (data: MapEventObject<AMap.Polyline>) => {
+        this.deleteMarker?.remove();
+        this.polygon?.remove();
+        this.polygon = null;
+        this.deleteMarker = null;
+        this.isClosureSubject.next({...this.isClosureSubject.value,isClosure: false})
+        this.pointDataSubject.next({points: []})
+      });
+      this.map.add(this.deleteMarker);
+    }
   }
 
   // 绘制辅助线
@@ -332,7 +454,7 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
               // 平行线
               const line = new AMap.Polyline({
                 path: auxiliaryPoints,
-                strokeColor: '#336AFE',
+                strokeColor: this.guideStrokeColor,
                 zIndex: 9,
               });
               // 垂直线
@@ -340,7 +462,7 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
                 (item, i) => {
                   return new AMap.Polyline({
                     path: item,
-                    strokeColor: '#336AFE',
+                    strokeColor: this.guideStrokeColor,
                     extData: {
                       origin: i === 0 ? point : nextPoint,
                     },
@@ -353,28 +475,19 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
                 text: distance,
                 anchor: 'center',
                 angle: Math.abs(transformAngle) > 90 ? (transformAngle + 180) % 360 : transformAngle,
-                style: {
-                  'background-color': '#336AFE',
-                  'border-radius': '8px',
-                  color: '#fff',
-                  padding: '0 5px',
-                },
+                style: this.guideTextStyle,
               });
               // 角度弧线
               const arc = new AMap.Polyline({
                 path: arcPoints as [number, number][],
-                strokeColor: '#336AFE',
+                strokeColor: this.guideArcColor,
               });
               // 角度文本
               const arcText = new AMap.Text({
                 position: textPos,
                 text: textPos ? `${angle.toFixed(2)}°` : '',
                 anchor: 'center',
-                style: {
-                  'background-color': 'transparent',
-                  border: 'none',
-                  color: '#262626',
-                },
+                style: this.guideArcTextStyle
               });
 
               this.guideGroup.addOverlays([line, ...verticalLine, text, arc, arcText]);
@@ -386,6 +499,17 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
                 arcText,
               });
             }
+          });
+        }
+
+      // 删除或撤销时，删除多余实例
+        const lines = this.guideGroup.getOverlays();
+        if (lines.length > (points.length - (isClosure ? 0 : 1)) * 6) {
+          const removes: AMap.CircleMarker[] = points.length === 0 ? lines : lines.slice((points.length - 1) * 6);
+          this.guideGroup.removeOverlays(removes);
+          this.guideGroupList = this.guideGroupList.slice(0, points.length - 1);
+          removes.forEach((instance) => {
+            instance.remove();
           });
         }
       });
@@ -495,7 +619,7 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
         ) {
           this.activePolyline = new AMap.Polyline({
             path: [mousePos, points[points.length - 1]],
-            strokeColor: '#336AFE',
+            strokeColor: this.lineStrokeColor,
             zIndex: 9,
             strokeStyle: 'dashed',
             strokeDasharray: [4, 4],
@@ -504,8 +628,8 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
           this.activePolygon = new AMap.Polygon({
             path: [mousePos, ...points],
             strokeOpacity: 0,
-            fillColor: '#336AFE',
-            fillOpacity: 0.07,
+            fillColor: this.areaFillColor,
+            fillOpacity: this.areaFillOpacity,
             bubble: true,
           });
 
@@ -513,7 +637,7 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
           // 平行线
           this.activeGuidePolyline = new AMap.Polyline({
             path: auxiliaryPoints,
-            strokeColor: '#336AFE',
+            strokeColor: this.guideStrokeColor,
             zIndex: 9,
             bubble: true,
           });
@@ -524,7 +648,7 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
           ].map((item) => {
             return new AMap.Polyline({
               path: item,
-              strokeColor: '#336AFE',
+              strokeColor: this.guideStrokeColor,
               bubble: true,
             });
           });
@@ -535,17 +659,12 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
             anchor: 'center',
             angle: Math.abs(transformAngle) > 90 ? (transformAngle + 180) % 360 : transformAngle,
             bubble: true,
-            style: {
-              'background-color': '#336AFE',
-              'border-radius': '8px',
-              color: '#fff',
-              padding: '0 5px',
-            },
+            style: this.guideTextStyle,
           });
           // 圆弧
           this.activeGuideArc = new AMap.Polyline({
             path: arcPoints as [number, number][],
-            strokeColor: '#336AFE',
+            strokeColor: this.guideArcColor,
             bubble: true,
           });
           // 角度文本
@@ -554,11 +673,7 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
             text: `${angle.toFixed(2)}°`,
             anchor: 'center',
             bubble: true,
-            style: {
-              'background-color': 'transparent',
-              border: 'none',
-              color: '#262626',
-            },
+            style: this.guideArcTextStyle,
           });
           this.map.add([
             this.activeGuidePolyline,
