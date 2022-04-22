@@ -17,15 +17,8 @@ Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app w
 | Name | Description |
 | ---- | ---- |
 | map  | 高德地图的地图实例|
-| pointStrokeColor | 点的描边颜色（点实际上是一个圆）|
-| pointFillColor | 点的填充颜色 |
-| pointFillOpacity | 点的填充色透明度 |
-| pointRadius | 点的半径（点的大小，单位px） |
-| pointzIndex | 点的zIndex |
-| lineStrokeColor | 线的描边颜色 |
-| lineStrokeWeight | 线的宽度 |
-| lineStrokeOpacity | 线的透明度 |
-| linezIndex | 线的zIndex |
+| point | 点的样式，暂时只支持AMap.CircleMarker类型|
+| line | 线的样式，暂时只支持AMap.Polyline类型 |
 | areaFillColor | 区域的填充颜色 |
 | areaFillOpacity | 区域的填充透明度 |
 | guideVisible | 是否绘制辅助线 |
