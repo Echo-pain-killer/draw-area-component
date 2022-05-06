@@ -6,19 +6,25 @@ import { AppComponent } from './app.component';
 import { DrawAreaComponent } from './components/draw-area/draw-area.component';
 import { TestComponent } from './components/test/test.component';
 import { DrawRectComponent } from './components/draw-rect/draw-rect.component';
+import { XtectDrawRectComponent } from './components/xtect-draw-rect/xtect-draw-rect.component';
+import { registerLocaleData } from '@angular/common';
+import zh from '@angular/common/locales/zh';
+import { FormsModule } from '@angular/forms';
+import { HttpClientModule } from '@angular/common/http';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { DrawLineComponent } from './components/draw-line/draw-line.component';
+
+registerLocaleData(zh);
 
 @NgModule({
-  declarations: [
-    AppComponent,
-    DrawAreaComponent,
-    TestComponent,
-    DrawRectComponent,
-  ],
+  declarations: [AppComponent, DrawAreaComponent, TestComponent, DrawRectComponent, XtectDrawRectComponent, DrawLineComponent],
   imports: [
     BrowserModule,
-    AppRoutingModule
+    AppRoutingModule,
+    FormsModule,
+    HttpClientModule,
+    BrowserAnimationsModule,
   ],
-  providers: [],
-  bootstrap: [AppComponent]
+  bootstrap: [AppComponent],
 })
-export class AppModule { }
+export class AppModule {}

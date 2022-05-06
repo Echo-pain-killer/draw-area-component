@@ -1,0 +1,9 @@
+<div #infoWindow class="info-window">
+  <div>建筑边长</div>
+  <input #lengthInput type="number" [(ngModel)]="length" (keyup.enter)="inputEnter()"/>
+</div>
+
+<div class="building-tips">
+  <span style="color: #fff">建议建筑边长30m-60m，esc取消绘制</span>
+</div>
+

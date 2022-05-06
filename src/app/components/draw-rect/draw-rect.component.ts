@@ -3,7 +3,6 @@ import { BehaviorSubject, combineLatest, filter, Subject, switchMap, takeUntil }
 import { MapEventObject } from 'src/app/interface/map.interface';
 import * as turf from '@turf/turf';
 import { getDirection } from '../../utils';
-import { point } from '@turf/turf';
 
 @Component({
   selector: 'app-draw-rect',
@@ -115,6 +114,9 @@ export class DrawRectComponent implements OnInit, OnDestroy {
         if (!this.activeLine) {
           this.activeLine = new AMap.Polyline({
             path: [point, mousePos],
+            strokeColor: '#FAAD14',
+            strokeStyle: 'dashed',
+            strokeDasharray: [6,6],
             bubble: true,
           });
           this.map.add(this.activeLine);
@@ -156,6 +158,10 @@ export class DrawRectComponent implements OnInit, OnDestroy {
           // 将四个点连成矩形
           this.activeRect = new AMap.Polygon({
             path: [...points, this.thirdPoint, this.fourthPoint],
+            fillColor: '#8378EA',
+            strokeColor: '#FAAD14',
+            strokeStyle: 'dashed',
+            strokeDasharray: [6,6],
             bubble: true,
           });
           this.map.add(this.activeRect);
@@ -182,6 +188,9 @@ export class DrawRectComponent implements OnInit, OnDestroy {
           if (index < arr.length - 1) {
             const polyline = new AMap.Polyline({
               path: [new AMap.LngLat(...point), new AMap.LngLat(...arr[index + 1])],
+              strokeColor: '#FAAD14',
+              strokeStyle: 'dashed',
+              strokeDasharray: [6,6],
               bubble: true,
             });
             this.lineOverlayGroup.addOverlay(polyline);
@@ -192,6 +201,10 @@ export class DrawRectComponent implements OnInit, OnDestroy {
           this.map.remove(this.activeRect);
           const polyline = new AMap.Polygon({
             path: points,
+            fillColor: '#8378EA',
+            strokeColor: '#FAAD14',
+            strokeStyle: 'dashed',
+            strokeDasharray: [6,6],
           });
           this.map.add(polyline);
           this.lineOverlayGroup.clearOverlays();

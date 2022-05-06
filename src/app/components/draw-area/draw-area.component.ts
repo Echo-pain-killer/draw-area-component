@@ -575,7 +575,7 @@ export class DrawAreaComponent implements OnInit, OnDestroy {
       });
   }
 
-  // 正南北和正东西方向吸附功能
+  // 正交吸附功能
   adsorbPoint(): void {
     combineLatest([this.pointDataSubject, this.isClosureSubject])
       .pipe(

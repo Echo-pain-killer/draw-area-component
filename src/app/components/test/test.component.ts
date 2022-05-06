@@ -34,9 +34,10 @@ export class TestComponent implements OnInit,AfterViewInit {
         viewMode: '3D',
         features: ['bg', 'road'],
         center: [114.065671, 22.560183],
-        zoom: 17,
-        pitchEnable: false,
-        rotateEnable: false,
+        zoom: 19,
+        pitchEnable: true,
+        rotateEnable: true,
+        zooms: [2,24]
       });
       this.mapVisible = true
     });
