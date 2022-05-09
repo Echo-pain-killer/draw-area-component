@@ -22,9 +22,11 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
   pointOverlayGroup: AMap.OverlayGroup;
   lineOverlayGroup: AMap.OverlayGroup;
   guideOverlayGroup: AMap.OverlayGroup;
+  activeGuideOverlayGroup: AMap.OverlayGroup;
 
   activeLine: AMap.Polyline;
   activeRect: AMap.Polygon;
+  activeText: AMap.Text;
 
   // 通过鼠标移动产生的矩形点
   thirdPoint: [number, number];
@@ -34,13 +36,22 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
   newThirdPoint: [number, number];
   newFourthPoint: [number, number];
 
-  MIN_LIMIT = 20;
-  MAX_LIMIT = 80;
+  // 合规范围
+  MIN_LIMIT = 30;
+  MAX_LIMIT = 60;
+
+  // 可探讨范围
+  MIN_DISCUSS = 20;
+  MAX_DISCUSS = 80;
 
   length = 0;
 
   mousePos: [number, number]; // 鼠标位置
   inputNewPos: [number, number] = null; // 通过input输入后找到的点
+
+  // redo/undo相关
+  undo_buffer: [number, number][] = JSON.parse(JSON.stringify(this.pointDataSubject.value));
+  redo_buffer: [number, number][] = [];
 
   constructor() {}
 
@@ -77,6 +88,48 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
     this.map.off('mousemove', this.sendMapEvent);
   }
 
+  save_state_for_undo() {
+    this.undo_buffer.push(JSON.parse(JSON.stringify(this.pointDataSubject.value)));
+    this.redo_buffer = [];
+  }
+
+  // 撤销
+  undo() {
+    // 撤销时清除地图上的overlay，在触发事件时会重新绘制
+    if (this.activeLine) {
+      this.map.remove(this.activeLine);
+      this.activeLine = null;
+    }
+    if (this.activeRect) {
+      this.map.remove(this.activeRect);
+      this.activeRect = null;
+    }
+    if (this.activeText) {
+      this.map.remove(this.activeText);
+      this.activeText = null;
+    }
+    this.activeGuideOverlayGroup.clearOverlays();
+    this.lineOverlayGroup.clearOverlays();
+    this.guideOverlayGroup.clearOverlays();
+
+    // 将第一个点都撤销了后，不再记录之后的操作
+    this.undo_buffer.length !== 0 ? this.redo_buffer.push(this.undo_buffer.pop()) : null;
+    this.pointDataSubject.next(
+      JSON.parse(JSON.stringify(this.undo_buffer[this.undo_buffer.length - 1] ? this.undo_buffer[this.undo_buffer.length - 1] : [])),
+    );
+  }
+
+  // 重做
+  redo() {
+    if (this.redo_buffer.length >= 1) {
+      this.pointDataSubject.next(
+        JSON.parse(JSON.stringify(this.redo_buffer[this.redo_buffer.length - 1] ? this.redo_buffer[this.redo_buffer.length - 1] : [])),
+      );
+      this.undo_buffer.push(this.redo_buffer.pop());
+    }
+  }
+
+  // 地图处理
   eventHandle(): void {
     this.map.on('click', this.sendMapEvent);
     this.map.on('mousemove', this.sendMapEvent);
@@ -111,6 +164,8 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
             this.newFourthPoint ? this.newFourthPoint : this.fourthPoint,
           ]);
         }
+
+        this.save_state_for_undo();
       });
   }
 
@@ -219,6 +274,7 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
     this.lineOverlayGroup = new AMap.OverlayGroup();
     this.map.add(this.lineOverlayGroup as any);
 
+    let polygon;
     this.pointDataSubject
       .pipe(
         takeUntil(this.componentDestroySubject),
@@ -246,7 +302,7 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
         if (points.length === 4) {
           this.map.remove(this.activeRect);
           this.activeRect = null;
-          const polygon = new AMap.Polygon({
+          polygon = new AMap.Polygon({
             path: points,
             fillColor: '#8378EA',
             strokeColor: '#336AFE',
@@ -256,6 +312,8 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
           this.map.add(polygon);
           this.lineOverlayGroup.clearOverlays();
           this.points.emit(points);
+        } else {
+          if(polygon) this.map.remove(polygon)
         }
       });
   }
@@ -342,9 +400,8 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
 
   // 绘制时动态长度标识
   activeTextDraw(): void {
-    let activeText: AMap.Text;
-    let activeGuideOverlayGroup = new AMap.OverlayGroup();
-    this.map.add(activeGuideOverlayGroup as any);
+    this.activeGuideOverlayGroup = new AMap.OverlayGroup();
+    this.map.add(this.activeGuideOverlayGroup as any);
     combineLatest([this.pointDataSubject, this.mapEventSubject])
       .pipe(
         takeUntil(this.componentDestroySubject),
@@ -365,11 +422,21 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
               color: '#737373',
               border: '1px solid',
               'border-radius': '4px',
-              'border-color': distance < 20 || distance > 80 ? '#ff4040' : distance < 30 || distance > 60 ? '#faad14' : '#336afe',
-              'background-color': distance < 20 || distance > 80 ? '#FFF2F0' : distance < 30 || distance > 60 ? '#FFFBE6' : '#F0F6FF',
+              'border-color':
+                distance < this.MIN_DISCUSS || distance > this.MAX_DISCUSS
+                  ? '#ff4040'
+                  : distance < this.MIN_LIMIT || distance > this.MAX_LIMIT
+                  ? '#faad14'
+                  : '#336afe',
+              'background-color':
+                distance < this.MIN_DISCUSS || distance > this.MAX_DISCUSS
+                  ? '#FFF2F0'
+                  : distance < this.MIN_LIMIT || distance > this.MAX_LIMIT
+                  ? '#FFFBE6'
+                  : '#F0F6FF',
             };
-          if (!activeText) {
-            activeText = new AMap.Text({
+          if (!this.activeText) {
+            this.activeText = new AMap.Text({
               position: midpoint,
               text: distance.toFixed(2) + 'm',
               anchor: 'center',
@@ -377,18 +444,18 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
               style,
               bubble: true,
             });
-            this.map.add(activeText);
+            this.map.add(this.activeText);
             return;
           }
-          activeText.setPosition(midpoint);
-          activeText.setAngle(angle > 0 ? angle - 90 : angle + 90);
-          activeText.setText(distance.toFixed(2) + 'm');
-          activeText.setStyle(style);
+          this.activeText.setPosition(midpoint);
+          this.activeText.setAngle(angle > 0 ? angle - 90 : angle + 90);
+          this.activeText.setText(distance.toFixed(2) + 'm');
+          this.activeText.setStyle(style);
         }
 
         // 绘制第三个和第四个点时的动态长度标识
         if (points.length === 2) {
-          this.map.remove(activeText);
+          if (this.activeText) this.map.remove(this.activeText);
           [points[0], points[1], this.thirdPoint, this.fourthPoint].forEach((point, index, arr) => {
             const point1 = point,
               point2 = index === arr.length - 1 ? arr[0] : arr[index + 1],
@@ -400,11 +467,21 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
                 color: '#737373',
                 border: '1px solid',
                 'border-radius': '4px',
-                'border-color': distance < 20 || distance > 80 ? '#ff4040' : distance < 30 || distance > 60 ? '#faad14' : '#336afe',
-                'background-color': distance < 20 || distance > 80 ? '#FFF2F0' : distance < 30 || distance > 60 ? '#FFFBE6' : '#F0F6FF',
+                'border-color':
+                  distance < this.MIN_DISCUSS || distance > this.MAX_DISCUSS
+                    ? '#ff4040'
+                    : distance < this.MIN_LIMIT || distance > this.MAX_LIMIT
+                    ? '#faad14'
+                    : '#336afe',
+                'background-color':
+                  distance < this.MIN_DISCUSS || distance > this.MAX_DISCUSS
+                    ? '#FFF2F0'
+                    : distance < this.MIN_LIMIT || distance > this.MAX_LIMIT
+                    ? '#FFFBE6'
+                    : '#F0F6FF',
               };
 
-            const overlays = activeGuideOverlayGroup.getOverlays() as AMap.Text[];
+            const overlays = this.activeGuideOverlayGroup.getOverlays() as AMap.Text[];
             if (index < overlays.length) {
               overlays[index].setPosition(midpoint);
               overlays[index].setAngle(angle > 0 ? angle - 90 : angle + 90);
@@ -420,13 +497,13 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
               style,
               bubble: true,
             });
-            activeGuideOverlayGroup.addOverlay(text);
+            this.activeGuideOverlayGroup.addOverlay(text);
           });
         }
 
         // 移除动态标记
         if (points.length === 4) {
-          activeGuideOverlayGroup.clearOverlays();
+          this.activeGuideOverlayGroup.clearOverlays();
         }
       });
   }
@@ -452,8 +529,18 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
               color: '#737373',
               border: '1px solid',
               'border-radius': '4px',
-              'border-color': distance < 20 || distance > 80 ? '#ff4040' : distance < 30 || distance > 60 ? '#faad14' : '#336afe',
-              'background-color': distance < 20 || distance > 80 ? '#FFF2F0' : distance < 30 || distance > 60 ? '#FFFBE6' : '#F0F6FF',
+              'border-color':
+                distance < this.MIN_DISCUSS || distance > this.MAX_DISCUSS
+                  ? '#ff4040'
+                  : distance < this.MIN_LIMIT || distance > this.MAX_LIMIT
+                  ? '#faad14'
+                  : '#336afe',
+              'background-color':
+                distance < this.MIN_DISCUSS || distance > this.MAX_DISCUSS
+                  ? '#FFF2F0'
+                  : distance < this.MIN_LIMIT || distance > this.MAX_LIMIT
+                  ? '#FFFBE6'
+                  : '#F0F6FF',
             };
 
           const guideOverlays = this.guideOverlayGroup.getOverlays() as AMap.Text[];
