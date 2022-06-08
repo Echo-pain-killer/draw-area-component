@@ -13,11 +13,13 @@ import { FormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { DrawLineComponent } from './components/draw-line/draw-line.component';
+import { EditRectComponent } from './components/edit-rect/edit-rect.component';
+import { EditPolylineComponent } from './components/edit-polyline/edit-polyline.component';
 
 registerLocaleData(zh);
 
 @NgModule({
-  declarations: [AppComponent, DrawAreaComponent, TestComponent, DrawRectComponent, XtectDrawRectComponent, DrawLineComponent],
+  declarations: [AppComponent, DrawAreaComponent, TestComponent, DrawRectComponent, XtectDrawRectComponent, DrawLineComponent, EditRectComponent, EditPolylineComponent],
   imports: [
     BrowserModule,
     AppRoutingModule,

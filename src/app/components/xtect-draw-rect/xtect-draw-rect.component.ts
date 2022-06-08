@@ -163,6 +163,7 @@ export class XtectDrawRectComponent implements OnInit, AfterViewInit {
             this.newThirdPoint ? this.newThirdPoint : this.thirdPoint,
             this.newFourthPoint ? this.newFourthPoint : this.fourthPoint,
           ]);
+          console.log(this.pointDataSubject.value)
         }
 
         this.save_state_for_undo();

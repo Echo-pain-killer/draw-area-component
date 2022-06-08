@@ -1,4 +1,5 @@
 import { Vector3 } from "three/src/math/Vector3";
+import * as turf from '@turf/turf'
 
 type coordinate2D = [number, number];
 
@@ -23,3 +24,28 @@ export const getDirection = (start: coordinate2D, end: coordinate2D, outPoint: c
   // }
   return nVector.z > 0;
 };
+
+
+/**
+ * 获取两条直线交点
+ *
+ * @param line1 直线1
+ * @param line2 直线2
+ */
+ export function lineIntersect(line1, line2): number[] {
+   if([...new Set([...line1.coordinates,...line2.coordinates].map(item => item.toString()))].length < 4) {
+     return null
+   }
+  // 两条线平行则没有交点
+  if (turf.booleanParallel(turf.lineString(line1.coordinates), turf.lineString(line2.coordinates))) {
+    return null;
+  }
+  const a1 = line1.coordinates[1][1] - line1.coordinates[0][1];
+  const a2 = line2.coordinates[1][1] - line2.coordinates[0][1];
+  const b1 = line1.coordinates[0][0] - line1.coordinates[1][0];
+  const b2 = line2.coordinates[0][0] - line2.coordinates[1][0];
+  const c1 = a1 * line1.coordinates[0][0] + b1 * line1.coordinates[0][1];
+  const c2 = a2 * line2.coordinates[0][0] + b2 * line2.coordinates[0][1];
+  const denominator = a1 * b2 - a2 * b1;
+  return [(b2 * c1 - b1 * c2) / denominator, (a1 * c2 - a2 * c1) / denominator];
+}
